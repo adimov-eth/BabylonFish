@@ -1,20 +1,25 @@
 {
-	"name": "@ai-agent/telegram",
+	"name": "@trans-bot/telegram",
 	"version": "0.1.0",
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"dev": "tsx watch src/index.ts",
+		"dev": "bun run --watch src/index.ts",
 		"build": "tsc",
-		"start": "node dist/index.js"
+		"start": "bun run src/index.ts",
+		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
-		"grammy": "^1.21.1",
-		"dotenv": "^16.4.1"
+		"@trans-bot/ai": "workspace:*",
+		"better-sqlite3": "^11.9.1",
+		"dotenv": "^16.4.1",
+		"grammy": "^1.36.0"
 	},
 	"devDependencies": {
-		"tsx": "^4.7.0",
-		"typescript": "^5.3.3",
-		"@types/node": "^20.11.19"
+		"@grammyjs/storage-file": "^2.5.1",
+		"@types/better-sqlite3": "^7.6.13",
+		"@types/node": "^20.17.30",
+		"bun-types": "latest",
+		"typescript": "^5.3.3"
 	}
 }

@@ -23,4 +23,7 @@ pnpm-debug.log*
 
 # OS
 .DS_Store
-Thumbs.db 
+Thumbs.db
+
+# Bot data
+packages/telegram/data/ 

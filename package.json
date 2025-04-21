@@ -16,5 +16,10 @@
 		"bun": ">=1.0.0"
 	},
 	"packageManager": "pnpm@8.15.4",
-	"workspaces": ["packages/*"]
+	"workspaces": [
+		"packages/*"
+	],
+	"devDependencies": {
+		"@types/node": "^22.14.1"
+	}
 }

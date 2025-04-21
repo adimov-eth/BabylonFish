@@ -10,7 +10,16 @@
 		"esModuleInterop": true,
 		"resolveJsonModule": true,
 		"isolatedModules": true,
-		"types": ["node"]
+		"types": ["node"],
+		"baseUrl": ".",
+		"paths": {
+			"@ai/*": ["packages/ai/src/*"]
+		},
+		"composite": true
 	},
+	"references": [
+		{ "path": "./packages/ai" },
+		{ "path": "./packages/telegram" }
+	],
 	"exclude": ["node_modules", "dist"]
 }

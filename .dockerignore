@@ -1,0 +1,29 @@
+# Version control
+.git
+.gitignore
+
+# Dependencies
+node_modules
+**/node_modules
+
+# Build outputs
+**/dist
+**/.mastra
+**/.build
+
+# Development files
+.vscode
+.cursor
+docs
+
+# Environment files
+.env
+**/.env
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db 
