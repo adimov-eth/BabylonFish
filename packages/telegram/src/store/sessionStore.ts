@@ -1,7 +1,7 @@
 import { FileAdapter } from "@grammyjs/storage-file";
 import { type Context, type SessionFlavor, session } from "grammy";
 import type { GroupConfig, GroupConfigStore } from "../types";
-import { fileStore } from "./fileStore";
+import { createStore } from "./index";
 
 // Default configuration values
 const DEFAULT_CONFIG: Omit<GroupConfig, "chatId"> = {
@@ -42,7 +42,7 @@ const getSessionKey = (ctx: Context): string | undefined => {
 const initialSession = (): SessionData => ({
 	language: "en",
 	config: null,
-	configStore: fileStore as GroupConfigStore,
+	configStore: createStore("file"),
 });
 
 // Export session middleware
