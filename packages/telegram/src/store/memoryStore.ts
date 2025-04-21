@@ -16,6 +16,18 @@ export const memoryStore: GroupConfigStore = {
 			return config;
 		}
 		// Return default config if not found
+		return this.getDefaultConfig(chatId);
+	},
+
+	async set(chatId: number, config: GroupConfig): Promise<void> {
+		store.set(chatId, config);
+	},
+
+	async delete(chatId: number): Promise<void> {
+		store.delete(chatId);
+	},
+
+	getDefaultConfig(chatId: number): GroupConfig {
 		return {
 			chatId,
 			languagePair: {
@@ -26,13 +38,5 @@ export const memoryStore: GroupConfigStore = {
 			translateCommands: DEFAULT_TRANSLATE_COMMANDS,
 			replyStyle: DEFAULT_REPLY_STYLE,
 		};
-	},
-
-	async set(chatId: number, config: GroupConfig): Promise<void> {
-		store.set(chatId, config);
-	},
-
-	async delete(chatId: number): Promise<void> {
-		store.delete(chatId);
 	},
 };

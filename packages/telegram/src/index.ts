@@ -1,9 +1,13 @@
-import { Bot, type NextFunction } from "grammy";
+import { Bot, type Middleware, type NextFunction } from "grammy";
 import "dotenv/config";
 // Import AI function directly
 import { translateText } from "@ai/mastra/agents/assistant";
 import type { TranslationRequest, TranslationResponse } from "@ai/mastra/types";
-import { type SessionContext, sessionMiddleware } from "./store/sessionStore";
+import {
+	type SessionContext,
+	ensureConfig,
+	sessionMiddleware,
+} from "./store/sessionStore";
 import type { GroupConfig } from "./types";
 
 interface Message {
@@ -29,7 +33,7 @@ if (!BOT_TOKEN) {
 const bot = new Bot<SessionContext>(BOT_TOKEN);
 
 // Register session middleware
-bot.use(sessionMiddleware);
+bot.use(sessionMiddleware as unknown as Middleware<SessionContext>);
 
 // Register commands for Telegram suggestion list
 async function setupCommands(botInstance: Bot<SessionContext>) {
@@ -129,11 +133,11 @@ Available commands:
 bot.command("start", async (ctx: SessionContext) => {
 	try {
 		console.log("Processing /start command");
-		if (ctx.chat.type === "private") {
+		if (ctx.chat?.type === "private") {
 			await ctx.reply(
 				"Welcome! I am a translation bot. Add me to a group to help translate messages between languages.",
 			);
-		} else {
+		} else if (ctx.chat) {
 			const config = await ctx.session.configStore.get(ctx.chat.id);
 			const langPair = `${config.languagePair.primary} ↔ ${config.languagePair.secondary}`;
 			await ctx.reply(
@@ -155,7 +159,11 @@ bot.command("setlanguages", async (ctx: SessionContext) => {
 			return ctx.reply("Command only available in groups.");
 		}
 
-		const args = ctx.match.split(" ").filter(Boolean);
+		const args = (
+			typeof ctx.match === "string" ? ctx.match : (ctx.match?.[0] ?? "")
+		)
+			.split(" ")
+			.filter(Boolean);
 		if (args.length !== 2) {
 			return ctx.reply(
 				"Usage: /setlanguages <primary_lang_code> <secondary_lang_code>\nExample: /setlanguages en vi",
@@ -163,11 +171,10 @@ bot.command("setlanguages", async (ctx: SessionContext) => {
 		}
 
 		const [primary, secondary] = args;
-		ctx.session.config = {
-			...ctx.session.config,
-			languagePair: { primary, secondary },
-		};
-
+		if (!ctx.chat) return;
+		const config = ensureConfig(ctx);
+		config.languagePair = { primary, secondary };
+		await ctx.session.configStore.set(ctx.chat.id, config);
 		await ctx.reply(`Languages set to: ${primary} ↔ ${secondary}`);
 	} catch (error) {
 		console.error("Error in /setlanguages command:", error);
@@ -185,10 +192,10 @@ bot.command("showconfig", async (ctx: SessionContext) => {
 	const config = ctx.session.config;
 	const configString = `
 Group Configuration:
-- Enabled: ${config.enabled}
-- Languages: ${config.languagePair.primary} ↔ ${config.languagePair.secondary}
-- Reply Style: ${config.replyStyle}
-- Translate Commands: ${config.translateCommands}
+- Enabled: ${config?.enabled}
+- Languages: ${config?.languagePair.primary} ↔ ${config?.languagePair.secondary}
+- Reply Style: ${config?.replyStyle}
+- Translate Commands: ${config?.translateCommands}
   `;
 	await ctx.reply(configString);
 });
@@ -199,14 +206,13 @@ bot.command("enable", async (ctx: SessionContext) => {
 		return ctx.reply("Command only available in groups.");
 	}
 	// TODO: Add admin check
-	if (ctx.session.config.enabled) {
+	if (ctx.session.config?.enabled) {
 		return ctx.reply("Translation is already enabled.");
 	}
 
-	ctx.session.config = {
-		...ctx.session.config,
-		enabled: true,
-	};
+	const config = ensureConfig(ctx);
+	config.enabled = true;
+	await ctx.session.configStore.set(ctx.chat?.id ?? 0, config);
 	await ctx.reply("Translation enabled.");
 });
 
@@ -215,7 +221,7 @@ bot.command("disable", async (ctx: SessionContext) => {
 		return ctx.reply("Command only available in groups.");
 	}
 	// TODO: Add admin check
-	if (!ctx.session.config.enabled) {
+	if (!ctx.session.config?.enabled) {
 		return ctx.reply("Translation is already disabled.");
 	}
 
@@ -232,35 +238,36 @@ bot.command("setstyle", async (ctx: SessionContext) => {
 	}
 	// TODO: Add admin check
 
-	const style = ctx.match.trim().toLowerCase();
+	const style = (
+		typeof ctx.match === "string" ? ctx.match : (ctx.match?.[0] ?? "")
+	)
+		.trim()
+		.toLowerCase();
 	if (style !== "thread" && style !== "reply" && style !== "inline") {
 		return ctx.reply("Invalid style. Use 'thread', 'reply', or 'inline'.");
 	}
 
-	const newConfig = {
-		...ctx.session.config,
-		replyStyle: style as "thread" | "reply" | "inline",
-	};
-	await ctx.session.configStore.set(ctx.chat.id, newConfig);
-	ctx.session.config = newConfig; // Update context
+	const config = ensureConfig(ctx);
+	config.replyStyle = style as "thread" | "reply" | "inline";
+	await ctx.session.configStore.set(ctx.chat?.id ?? 0, config);
 	await ctx.reply(`Reply style set to: ${style}`);
 });
 
 // Regular message handler - MUST BE AFTER all command handlers
 bot.on("message:text", async (ctx: SessionContext) => {
-	if (!ctx.session.config.enabled) {
+	if (!ctx.session.config?.enabled) {
 		console.log("Message ignored - translation disabled");
 		return;
 	}
 
 	// Ignore all commands
-	if (ctx.message.text.startsWith("/")) {
+	if (ctx.message?.text?.startsWith("/")) {
 		console.log("Ignoring command in message handler:", ctx.message.text);
 		return;
 	}
 
 	// Basic language detection placeholder (TODO: Improve detection)
-	const text = ctx.message.text;
+	const text = ctx.message?.text ?? "";
 	const { primary, secondary } = ctx.session.config.languagePair;
 	let sourceLang = primary;
 	let targetLang = secondary;
@@ -293,7 +300,7 @@ bot.on("message:text", async (ctx: SessionContext) => {
 		text,
 		sourceLanguage: sourceLang,
 		targetLanguage: targetLang,
-		groupId: ctx.chat.id,
+		groupId: ctx.chat?.id ?? 0,
 	};
 
 	// Call the imported function directly
@@ -302,7 +309,7 @@ bot.on("message:text", async (ctx: SessionContext) => {
 	if (response?.translatedText && response.confidence > 0) {
 		// Check confidence
 		// Determine reply method based on config
-		const username = ctx.message.from?.username || "User"; // Fallback if username is missing
+		const username = ctx.message?.from?.username || "User"; // Fallback if username is missing
 		const replyText = `@${username}: ${response.translatedText}`;
 
 		if (ctx.session.config.replyStyle === "thread") {
@@ -319,7 +326,7 @@ bot.on("message:text", async (ctx: SessionContext) => {
 		// Optional: Notify user about translation failure or low confidence
 		console.log(
 			"Translation failed or confidence too low for message:",
-			ctx.message.message_id,
+			ctx.message?.message_id,
 			"Response:",
 			response,
 		);

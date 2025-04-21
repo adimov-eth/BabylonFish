@@ -1,5 +1,6 @@
 import { FileAdapter } from "@grammyjs/storage-file";
-import type { GroupConfig, GroupConfigStore } from "../types";
+import type { GroupConfig } from "../types";
+import type { GroupConfigStore } from "../types";
 
 // Default configuration values
 const DEFAULT_CONFIG: Omit<GroupConfig, "chatId"> = {
@@ -12,37 +13,39 @@ const DEFAULT_CONFIG: Omit<GroupConfig, "chatId"> = {
 	replyStyle: "reply" as const,
 };
 
+// File adapter configuration
+const FILE_STORE_CONFIG = {
+	dirName: process.env.FILE_STORE_DIR || "data/sessions",
+	formatKey: (key: string) => `group_${key}.json`,
+};
+
 // Create file adapter instance
-const fileAdapter = new FileAdapter({
-	dirName: "data/sessions", // Directory where files will be stored
-	// Format the filename to be chat ID based
-	filename: (key: string) => `group_${key}.json`,
-});
+const fileAdapter = new FileAdapter<GroupConfig>(FILE_STORE_CONFIG);
 
 export const fileStore: GroupConfigStore = {
 	async get(chatId: number): Promise<GroupConfig> {
 		try {
 			const data = await fileAdapter.read(chatId.toString());
-			if (data) {
-				return { ...data, chatId } as GroupConfig;
+			if (!data) {
+				return this.getDefaultConfig(chatId);
 			}
+			return { ...data, chatId } as GroupConfig;
 		} catch (error) {
 			console.error(`Error reading config for chat ${chatId}:`, error);
+			return this.getDefaultConfig(chatId);
 		}
-
-		// Return default config if not found or error
-		return {
-			chatId,
-			...DEFAULT_CONFIG,
-		};
 	},
 
 	async set(chatId: number, config: GroupConfig): Promise<void> {
+		if (!config || typeof config !== "object") {
+			throw new Error("Invalid config object provided");
+		}
+
 		try {
 			await fileAdapter.write(chatId.toString(), config);
 		} catch (error) {
 			console.error(`Error writing config for chat ${chatId}:`, error);
-			throw error; // Re-throw to handle in caller
+			throw new Error(`Failed to save config for chat ${chatId}`);
 		}
 	},
 
@@ -51,7 +54,14 @@ export const fileStore: GroupConfigStore = {
 			await fileAdapter.delete(chatId.toString());
 		} catch (error) {
 			console.error(`Error deleting config for chat ${chatId}:`, error);
-			throw error; // Re-throw to handle in caller
+			throw new Error(`Failed to delete config for chat ${chatId}`);
 		}
+	},
+
+	getDefaultConfig(chatId: number): GroupConfig {
+		return {
+			chatId,
+			...DEFAULT_CONFIG,
+		};
 	},
 };
