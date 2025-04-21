@@ -42,7 +42,7 @@ const getSessionKey = (ctx: Context): string | undefined => {
 const initialSession = (): SessionData => ({
 	language: "en",
 	config: null,
-	configStore: fileStore,
+	configStore: fileStore as GroupConfigStore,
 });
 
 // Export session middleware
