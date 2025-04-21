@@ -4,11 +4,17 @@
 	"version": "0.0.1",
 	"description": "Telegram bot with AI capabilities",
 	"scripts": {
-		"build": "pnpm -r build",
+		"build": "pnpm --filter @trans-bot/ai build",
 		"dev": "pnpm -r dev",
-		"test": "pnpm -r test",
-		"clean": "pnpm -r clean",
-		"typecheck": "pnpm -r typecheck"
+		"typecheck": "pnpm -r typecheck",
+		"start": "pnpm run start:services",
+		"start:services": "pnpm run start:ai && pnpm run start:telegram",
+		"start:ai": "pnpm --filter @trans-bot/ai start:pm2",
+		"start:telegram": "pnpm --filter @trans-bot/telegram start:pm2",
+		"stop": "pnpm run stop:services",
+		"stop:services": "pnpm run stop:ai && pnpm run stop:telegram",
+		"stop:ai": "pnpm --filter @trans-bot/ai stop:pm2",
+		"stop:telegram": "pnpm --filter @trans-bot/telegram stop:pm2"
 	},
 	"engines": {
 		"node": ">=18.0.0",
@@ -16,10 +22,9 @@
 		"bun": ">=1.0.0"
 	},
 	"packageManager": "pnpm@8.15.4",
-	"workspaces": [
-		"packages/*"
-	],
+	"workspaces": ["packages/*"],
 	"devDependencies": {
-		"@types/node": "^22.14.1"
+		"@types/node": "^22.14.1",
+		"pm2": "^5.3.1"
 	}
 }
