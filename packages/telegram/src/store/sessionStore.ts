@@ -21,7 +21,7 @@ export interface SessionData {
 	configStore: GroupConfigStore;
 }
 
-// Define custom context type with session
+// Export session context type
 export type SessionContext = Context & SessionFlavor<SessionData>;
 
 // Create file adapter for persistent storage
@@ -38,16 +38,19 @@ const getSessionKey = (ctx: Context): string | undefined => {
 	return ctx.chat.id.toString();
 };
 
+// Initial session data
+const initialSession = (): SessionData => ({
+	language: "en",
+	config: null,
+	configStore: fileStore,
+});
+
 // Export session middleware
-export const sessionMiddleware = {
-	getSessionKey,
+export const sessionMiddleware = session({
+	initial: initialSession,
 	storage: fileAdapter,
-	initial: (): SessionData => ({
-		language: "en",
-		config: null,
-		configStore: fileStore,
-	}),
-};
+	getSessionKey,
+});
 
 // Helper functions for managing session data
 export const getSession = async (
@@ -70,7 +73,7 @@ export const deleteSession = async (key: string): Promise<void> => {
 
 // Reset session to default configuration
 export const resetSession = async (key: string): Promise<void> => {
-	await setSession(key, sessionMiddleware.initial());
+	await setSession(key, initialSession());
 };
 
 // Helper function to ensure config exists

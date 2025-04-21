@@ -33,7 +33,7 @@ if (!BOT_TOKEN) {
 const bot = new Bot<SessionContext>(BOT_TOKEN);
 
 // Register session middleware
-bot.use(sessionMiddleware as unknown as Middleware<SessionContext>);
+bot.use(sessionMiddleware);
 
 // Register commands for Telegram suggestion list
 async function setupCommands(botInstance: Bot<SessionContext>) {
