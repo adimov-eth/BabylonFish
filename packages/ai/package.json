@@ -7,8 +7,6 @@
 		"dev": "pnpx mastra dev",
 		"build": "pnpx mastra build",
 		"start": "bun .mastra/output/index.mjs",
-		"start:pm2": "pm2 start .mastra/output/index.mjs --name trans-bot-ai",
-		"stop:pm2": "pm2 stop trans-bot-ai",
 		"typecheck": "tsc --noEmit"
 	},
 	"keywords": [],

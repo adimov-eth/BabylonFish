@@ -7,14 +7,11 @@
 		"build": "pnpm --filter @trans-bot/ai build",
 		"dev": "pnpm -r dev",
 		"typecheck": "pnpm -r typecheck",
-		"start": "pnpm run start:services",
-		"start:services": "pnpm run start:ai && pnpm run start:telegram",
-		"start:ai": "pnpm --filter @trans-bot/ai start:pm2",
-		"start:telegram": "pnpm --filter @trans-bot/telegram start:pm2",
-		"stop": "pnpm run stop:services",
-		"stop:services": "pnpm run stop:ai && pnpm run stop:telegram",
-		"stop:ai": "pnpm --filter @trans-bot/ai stop:pm2",
-		"stop:telegram": "pnpm --filter @trans-bot/telegram stop:pm2"
+		"start": "pm2 start ecosystem.config.js",
+		"stop": "pm2 stop all",
+		"restart": "pm2 restart all",
+		"logs": "pm2 logs",
+		"status": "pm2 list"
 	},
 	"engines": {
 		"node": ">=18.0.0",
