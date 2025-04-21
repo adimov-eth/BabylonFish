@@ -7,7 +7,7 @@
 		"build": "pnpm --filter @trans-bot/ai build",
 		"dev": "pnpm -r dev",
 		"typecheck": "pnpm -r typecheck",
-		"start": "pm2 start ecosystem.config.js",
+		"start": "pm2 start ecosystem.config.js --env production",
 		"stop": "pm2 stop all",
 		"restart": "pm2 restart all",
 		"logs": "pm2 logs",
