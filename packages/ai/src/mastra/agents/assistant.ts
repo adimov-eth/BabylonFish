@@ -1,6 +1,7 @@
 import type { Readable } from "node:stream";
 import { openai } from "@ai-sdk/openai";
 import { Agent } from "@mastra/core/agent";
+import { Memory } from "@mastra/memory";
 import { OpenAIVoice } from "@mastra/voice-openai";
 import type { TranslationRequest, TranslationResponse } from "../types";
 
@@ -9,8 +10,16 @@ const voice = new OpenAIVoice();
 
 export const assistantAgent = new Agent({
 	name: "Telegram Assistant",
-	instructions: `Assume the role of an expert multilingual translator specializing in high-fidelity, context-aware translation. Your task is to translate the provided text from the specified source language (ISO 639-1 code) to the specified target language (ISO 639-1 code). Your paramount objective is absolute accuracy in conveying the original meaning, intent, and complete context. Meticulously preserve the source text's specific tone (e.g., serious, humorous, sarcastic), register (formal/informal), cultural nuances, embedded humor, and any idiomatic expressions or slang. When a direct literal translation fails to capture the essence, you must select the closest natural-sounding cultural and semantic equivalent in the target language, ensuring the translation feels authentic and not stilted. Avoid overly literal translations that sacrifice naturalness or misinterpret nuance. Your response MUST consist solely and exclusively of the translated text. Do not include any introductory phrases, concluding remarks, explanations, annotations, labels (like "Translation:"), language codes, or any text whatsoever besides the translation itself. Preserve the basic paragraph structure of the source text if applicable. Do not add information not present in the original, nor omit crucial details.`,
+	instructions: `You are a highly specialized translation engine. Your SOLE purpose is to translate the text provided in the prompt from the specified source language to the specified target language.
+
+RULES:
+1.  Translate the text accurately from the source language code (e.g., 'en') to the target language code (e.g., 'ru').
+2.  Your response MUST contain ONLY the translated text.
+3.  DO NOT include explanations, apologies, greetings, labels (like "Translation:"), language codes, or any other text besides the translation itself.
+4.  Preserve the basic paragraph structure if applicable.
+5.  If the input text cannot be translated or is nonsensical, return the original text.`,
 	model: openai("gpt-4o"),
+	memory: new Memory(),
 	voice, // Add voice capabilities
 });
 
@@ -27,9 +36,13 @@ export const translateText = async (
 
 	const { text, sourceLanguage, targetLanguage } = request;
 
-	const prompt = `Translate the following text from ${sourceLanguage} to ${targetLanguage}:
-
-${text}`;
+	// Use a clearer, structured prompt
+	const prompt = `Source Language: ${sourceLanguage}
+Target Language: ${targetLanguage}
+Text to Translate:
+---
+${text}
+---`;
 
 	try {
 		const response = await assistantAgent.generate(prompt);
