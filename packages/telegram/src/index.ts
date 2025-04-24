@@ -82,11 +82,31 @@ async function setupCommands(botInstance: Bot<SessionContext>) {
 
 // Middleware to load group config
 bot.use(async (ctx: SessionContext, next: NextFunction) => {
-	if (ctx.chat) {
-		if (ctx.chat.type !== "private") {
-			// Only load group config for non-private chats
-			ctx.session.config = await ctx.session.configStore.get(ctx.chat.id);
+	try {
+		if (!ctx.chat) {
+			return next();
 		}
+
+		if (ctx.chat.type === "private") {
+			return next();
+		}
+
+		// Only load group config for non-private chats
+		if (!ctx.session) {
+			console.error("Session not initialized!");
+			return next();
+		}
+
+		if (!ctx.session.configStore) {
+			console.error("ConfigStore not initialized in session!");
+			return next();
+		}
+
+		console.log("Loading config for chat:", ctx.chat.id);
+		ctx.session.config = await ctx.session.configStore.get(ctx.chat.id);
+		console.log("Loaded config:", ctx.session.config);
+	} catch (error) {
+		console.error("Error in group config middleware:", error);
 	}
 	await next();
 });

@@ -43,12 +43,18 @@ const getSessionKey = (ctx: Context): string | undefined => {
 	return `session:${ctx.chat.id.toString()}`;
 };
 
+// Create store instance once
+const store = createStore("redis");
+
 // Initial session data
-const initialSession = (): SessionData => ({
-	language: "en",
-	config: null,
-	configStore: createStore("redis"),
-});
+const initialSession = (): SessionData => {
+	console.log("Initializing new session with Redis store");
+	return {
+		language: "en",
+		config: null,
+		configStore: store,
+	};
+};
 
 // Export session middleware
 export const sessionMiddleware = session({
@@ -62,6 +68,10 @@ export const getSession = async (
 	key: string,
 ): Promise<SessionData | undefined> => {
 	const data = await redisAdapter.read(key);
+	if (data && !data.configStore) {
+		console.log("Fixing missing configStore in session", key);
+		data.configStore = store;
+	}
 	return data as SessionData | undefined;
 };
 
@@ -69,6 +79,11 @@ export const setSession = async (
 	key: string,
 	data: SessionData,
 ): Promise<void> => {
+	// Ensure configStore is set
+	if (!data.configStore) {
+		console.log("Setting missing configStore in session", key);
+		data.configStore = store;
+	}
 	await redisAdapter.write(key, data);
 };
 
@@ -83,6 +98,12 @@ export const resetSession = async (key: string): Promise<void> => {
 
 // Helper function to ensure config exists
 export const ensureConfig = (ctx: SessionContext): GroupConfig => {
+	// Ensure configStore exists
+	if (!ctx.session.configStore) {
+		console.log("Fixing missing configStore in session");
+		ctx.session.configStore = store;
+	}
+
 	if (!ctx.session.config) {
 		// Initialize default config if none exists
 		ctx.session.config = ctx.session.configStore.getDefaultConfig(
@@ -100,6 +121,13 @@ export const sessionStore = {
 			ctx.callbackQuery?.message?.chat.id ??
 			ctx.channelPost?.chat.id ??
 			ctx.myChatMember?.chat.id;
+
+		// Ensure configStore exists
+		if (!ctx.session.configStore) {
+			console.log("Fixing missing configStore in sessionStore.get");
+			ctx.session.configStore = store;
+		}
+
 		const config = ensureConfig(ctx);
 		if (chatId) {
 			config.chatId = chatId;
@@ -108,6 +136,11 @@ export const sessionStore = {
 	},
 
 	async set(ctx: SessionContext, config: GroupConfig): Promise<void> {
+		// Ensure configStore exists
+		if (!ctx.session.configStore) {
+			console.log("Fixing missing configStore in sessionStore.set");
+			ctx.session.configStore = store;
+		}
 		ctx.session.config = config;
 	},
 
