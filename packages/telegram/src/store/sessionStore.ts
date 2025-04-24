@@ -43,17 +43,37 @@ const getSessionKey = (ctx: Context): string | undefined => {
 	return `session:${ctx.chat.id.toString()}`;
 };
 
-// Create store instance once
-const store = createStore("redis");
+// Lazy store initialization
+let store: GroupConfigStore | null = null;
+const getStore = (): GroupConfigStore => {
+	if (!store) {
+		console.log("Initializing Redis store...");
+		try {
+			store = createStore("redis");
+			console.log("Redis store initialized successfully");
+		} catch (error) {
+			console.error("Failed to initialize Redis store:", error);
+			throw error;
+		}
+	}
+	return store;
+};
 
 // Initial session data
 const initialSession = (): SessionData => {
-	console.log("Initializing new session with Redis store");
-	return {
-		language: "en",
-		config: null,
-		configStore: store,
-	};
+	console.log("Initializing new session...");
+	try {
+		const configStore = getStore();
+		console.log("Session initialized with Redis store");
+		return {
+			language: "en",
+			config: null,
+			configStore,
+		};
+	} catch (error) {
+		console.error("Error initializing session:", error);
+		throw error;
+	}
 };
 
 // Export session middleware
@@ -70,7 +90,7 @@ export const getSession = async (
 	const data = await redisAdapter.read(key);
 	if (data && !data.configStore) {
 		console.log("Fixing missing configStore in session", key);
-		data.configStore = store;
+		data.configStore = getStore();
 	}
 	return data as SessionData | undefined;
 };
@@ -82,7 +102,7 @@ export const setSession = async (
 	// Ensure configStore is set
 	if (!data.configStore) {
 		console.log("Setting missing configStore in session", key);
-		data.configStore = store;
+		data.configStore = getStore();
 	}
 	await redisAdapter.write(key, data);
 };
@@ -101,7 +121,7 @@ export const ensureConfig = (ctx: SessionContext): GroupConfig => {
 	// Ensure configStore exists
 	if (!ctx.session.configStore) {
 		console.log("Fixing missing configStore in session");
-		ctx.session.configStore = store;
+		ctx.session.configStore = getStore();
 	}
 
 	if (!ctx.session.config) {
@@ -125,7 +145,7 @@ export const sessionStore = {
 		// Ensure configStore exists
 		if (!ctx.session.configStore) {
 			console.log("Fixing missing configStore in sessionStore.get");
-			ctx.session.configStore = store;
+			ctx.session.configStore = getStore();
 		}
 
 		const config = ensureConfig(ctx);
@@ -139,7 +159,7 @@ export const sessionStore = {
 		// Ensure configStore exists
 		if (!ctx.session.configStore) {
 			console.log("Fixing missing configStore in sessionStore.set");
-			ctx.session.configStore = store;
+			ctx.session.configStore = getStore();
 		}
 		ctx.session.config = config;
 	},

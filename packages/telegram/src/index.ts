@@ -84,29 +84,63 @@ async function setupCommands(botInstance: Bot<SessionContext>) {
 bot.use(async (ctx: SessionContext, next: NextFunction) => {
 	try {
 		if (!ctx.chat) {
+			console.log("No chat context, skipping config load");
 			return next();
 		}
 
 		if (ctx.chat.type === "private") {
+			console.log("Private chat, skipping config load");
 			return next();
 		}
 
 		// Only load group config for non-private chats
 		if (!ctx.session) {
-			console.error("Session not initialized!");
+			console.error("Session not initialized for chat:", ctx.chat.id);
 			return next();
 		}
+
+		console.log("Session state for chat", ctx.chat.id, ":", {
+			hasConfig: !!ctx.session.config,
+			hasConfigStore: !!ctx.session.configStore,
+		});
 
 		if (!ctx.session.configStore) {
-			console.error("ConfigStore not initialized in session!");
+			console.error(
+				"ConfigStore not initialized in session for chat:",
+				ctx.chat.id,
+			);
 			return next();
 		}
 
-		console.log("Loading config for chat:", ctx.chat.id);
-		ctx.session.config = await ctx.session.configStore.get(ctx.chat.id);
-		console.log("Loaded config:", ctx.session.config);
+		try {
+			console.log("Loading config for chat:", ctx.chat.id);
+			ctx.session.config = await ctx.session.configStore.get(ctx.chat.id);
+			console.log(
+				"Loaded config for chat",
+				ctx.chat.id,
+				":",
+				ctx.session.config,
+			);
+		} catch (configError) {
+			console.error(
+				"Error loading config for chat",
+				ctx.chat.id,
+				":",
+				configError,
+			);
+			// Don't throw, let the bot continue without config
+		}
 	} catch (error) {
 		console.error("Error in group config middleware:", error);
+		// Log the full context state in case of error
+		console.error("Context state:", {
+			hasChat: !!ctx.chat,
+			chatType: ctx.chat?.type,
+			chatId: ctx.chat?.id,
+			hasSession: !!ctx.session,
+			hasConfig: ctx.session?.config !== undefined,
+			hasConfigStore: ctx.session?.configStore !== undefined,
+		});
 	}
 	await next();
 });
