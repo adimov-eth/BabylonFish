@@ -6,6 +6,7 @@ import type { TranslationRequest, TranslationResponse } from "@ai/mastra/types";
 import {
 	type SessionContext,
 	ensureConfig,
+	getStore,
 	sessionMiddleware,
 } from "./store/sessionStore";
 import type { GroupConfig } from "./types";
@@ -101,20 +102,12 @@ bot.use(async (ctx: SessionContext, next: NextFunction) => {
 
 		console.log("Session state for chat", ctx.chat.id, ":", {
 			hasConfig: !!ctx.session.config,
-			hasConfigStore: !!ctx.session.configStore,
 		});
-
-		if (!ctx.session.configStore) {
-			console.error(
-				"ConfigStore not initialized in session for chat:",
-				ctx.chat.id,
-			);
-			return next();
-		}
 
 		try {
 			console.log("Loading config for chat:", ctx.chat.id);
-			ctx.session.config = await ctx.session.configStore.get(ctx.chat.id);
+			// Use getStore() directly
+			ctx.session.config = await getStore().get(ctx.chat.id);
 			console.log(
 				"Loaded config for chat",
 				ctx.chat.id,
@@ -139,7 +132,6 @@ bot.use(async (ctx: SessionContext, next: NextFunction) => {
 			chatId: ctx.chat?.id,
 			hasSession: !!ctx.session,
 			hasConfig: ctx.session?.config !== undefined,
-			hasConfigStore: ctx.session?.configStore !== undefined,
 		});
 	}
 	await next();
@@ -192,7 +184,7 @@ bot.command("start", async (ctx: SessionContext) => {
 				"Welcome! I am a translation bot. Add me to a group to help translate messages between languages.",
 			);
 		} else if (ctx.chat) {
-			const config = await ctx.session.configStore.get(ctx.chat.id);
+			const config = await getStore().get(ctx.chat.id);
 			const langPair = `${config.languagePair.primary} ↔ ${config.languagePair.secondary}`;
 			await ctx.reply(
 				`Translation Bot Activated! Current language pair: ${langPair}\nUse /showconfig to see current settings.`,
@@ -228,7 +220,7 @@ bot.command("setlanguages", async (ctx: SessionContext) => {
 		if (!ctx.chat) return;
 		const config = ensureConfig(ctx);
 		config.languagePair = { primary, secondary };
-		await ctx.session.configStore.set(ctx.chat.id, config);
+		await getStore().set(ctx.chat.id, config);
 		await ctx.reply(`Languages set to: ${primary} ↔ ${secondary}`);
 	} catch (error) {
 		console.error("Error in /setlanguages command:", error);
@@ -266,7 +258,7 @@ bot.command("enable", async (ctx: SessionContext) => {
 
 	const config = ensureConfig(ctx);
 	config.enabled = true;
-	await ctx.session.configStore.set(ctx.chat?.id ?? 0, config);
+	await getStore().set(ctx.chat?.id ?? 0, config);
 	await ctx.reply("Translation enabled.");
 });
 
@@ -275,14 +267,13 @@ bot.command("disable", async (ctx: SessionContext) => {
 		return ctx.reply("Command only available in groups.");
 	}
 	// TODO: Add admin check
-	if (!ctx.session.config?.enabled) {
+	const config = ensureConfig(ctx);
+	if (!config.enabled) {
 		return ctx.reply("Translation is already disabled.");
 	}
 
-	ctx.session.config = {
-		...ctx.session.config,
-		enabled: false,
-	};
+	config.enabled = false;
+	await getStore().set(ctx.chat?.id ?? 0, config);
 	await ctx.reply("Translation disabled.");
 });
 
@@ -303,7 +294,7 @@ bot.command("setstyle", async (ctx: SessionContext) => {
 
 	const config = ensureConfig(ctx);
 	config.replyStyle = style as "thread" | "reply" | "inline";
-	await ctx.session.configStore.set(ctx.chat?.id ?? 0, config);
+	await getStore().set(ctx.chat?.id ?? 0, config);
 	await ctx.reply(`Reply style set to: ${style}`);
 });
 

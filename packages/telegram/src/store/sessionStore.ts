@@ -19,7 +19,7 @@ const DEFAULT_CONFIG: Omit<GroupConfig, "chatId"> = {
 export interface SessionData {
 	language?: string;
 	config: GroupConfig | null;
-	configStore: GroupConfigStore;
+	// configStore: GroupConfigStore; // Removed - Cannot serialize functions
 }
 
 // Export session context type
@@ -43,9 +43,9 @@ const getSessionKey = (ctx: Context): string | undefined => {
 	return `session:${ctx.chat.id.toString()}`;
 };
 
-// Lazy store initialization
+// Lazy store initialization - Export getStore to be used directly
 let store: GroupConfigStore | null = null;
-const getStore = (): GroupConfigStore => {
+export const getStore = (): GroupConfigStore => {
 	if (!store) {
 		console.log("Initializing Redis store...");
 		try {
@@ -63,12 +63,12 @@ const getStore = (): GroupConfigStore => {
 const initialSession = (): SessionData => {
 	console.log("Initializing new session...");
 	try {
-		const configStore = getStore();
-		console.log("Session initialized with Redis store");
+		// const configStore = getStore(); // Removed - store is not part of session
+		console.log("Session initialized"); // Simplified log
 		return {
 			language: "en",
 			config: null,
-			configStore,
+			// configStore, // Removed - This caused the error on line 72 in previous lint
 		};
 	} catch (error) {
 		console.error("Error initializing session:", error);
@@ -88,22 +88,22 @@ export const getSession = async (
 	key: string,
 ): Promise<SessionData | undefined> => {
 	const data = await redisAdapter.read(key);
-	if (data && !data.configStore) {
-		console.log("Fixing missing configStore in session", key);
-		data.configStore = getStore();
-	}
-	return data as SessionData | undefined;
+	// if (data && !data.configStore) { // Removed check - configStore is not in session - Error line 92
+	// 	console.log("Fixing missing configStore in session", key);
+	// 	data.configStore = getStore(); // Removed - Error line 94
+	// }
+	return data;
 };
 
 export const setSession = async (
 	key: string,
 	data: SessionData,
 ): Promise<void> => {
-	// Ensure configStore is set
-	if (!data.configStore) {
-		console.log("Setting missing configStore in session", key);
-		data.configStore = getStore();
-	}
+	// Ensure configStore is set // Removed check - configStore is not in session - Error line 104
+	// if (!data.configStore) {
+	// 	console.log("Setting missing configStore in session", key);
+	// 	data.configStore = getStore(); // Removed - Error line 106
+	// }
 	await redisAdapter.write(key, data);
 };
 
@@ -116,20 +116,20 @@ export const resetSession = async (key: string): Promise<void> => {
 	await setSession(key, initialSession());
 };
 
-// Helper function to ensure config exists
+// Helper function to ensure config exists and is not null
 export const ensureConfig = (ctx: SessionContext): GroupConfig => {
-	// Ensure configStore exists
-	if (!ctx.session.configStore) {
-		console.log("Fixing missing configStore in session");
-		ctx.session.configStore = getStore();
-	}
+	// Ensure configStore exists // Removed check - configStore is not in session - Error line 123
+	// if (!ctx.session.configStore) {
+	// 	console.log("Fixing missing configStore in session");
+	// 	ctx.session.configStore = getStore(); // Removed - Error line 125
+	// }
 
 	if (!ctx.session.config) {
 		// Initialize default config if none exists
-		ctx.session.config = ctx.session.configStore.getDefaultConfig(
-			ctx.chat?.id ?? 0,
-		);
+		// Use getStore() directly
+		ctx.session.config = getStore().getDefaultConfig(ctx.chat?.id ?? 0); // Error line 130 was here
 	}
+	// The above ensures ctx.session.config is not null, addressing error line 134
 	return ctx.session.config;
 };
 
@@ -142,13 +142,13 @@ export const sessionStore = {
 			ctx.channelPost?.chat.id ??
 			ctx.myChatMember?.chat.id;
 
-		// Ensure configStore exists
-		if (!ctx.session.configStore) {
-			console.log("Fixing missing configStore in sessionStore.get");
-			ctx.session.configStore = getStore();
-		}
+		// Ensure configStore exists // Removed check - configStore is not in session - Error line 147
+		// if (!ctx.session.configStore) {
+		// 	console.log("Fixing missing configStore in sessionStore.get");
+		// 	ctx.session.configStore = getStore();
+		// }
 
-		const config = ensureConfig(ctx);
+		const config = ensureConfig(ctx); // ensureConfig now uses getStore() if needed
 		if (chatId) {
 			config.chatId = chatId;
 		}
@@ -156,12 +156,12 @@ export const sessionStore = {
 	},
 
 	async set(ctx: SessionContext, config: GroupConfig): Promise<void> {
-		// Ensure configStore exists
-		if (!ctx.session.configStore) {
-			console.log("Fixing missing configStore in sessionStore.set");
-			ctx.session.configStore = getStore();
-		}
-		ctx.session.config = config;
+		// Ensure configStore exists // Removed check - configStore is not in session
+		// if (!ctx.session.configStore) {
+		// 	console.log("Fixing missing configStore in sessionStore.set");
+		// 	ctx.session.configStore = getStore();
+		// }
+		ctx.session.config = config; // Only update the config part of the session
 	},
 
 	async delete(ctx: SessionContext): Promise<void> {
