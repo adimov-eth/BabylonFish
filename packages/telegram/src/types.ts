@@ -7,6 +7,7 @@ export interface GroupConfig {
 	enabled: boolean;
 	translateCommands: boolean;
 	replyStyle: "thread" | "reply" | "inline";
+	replyWithVoice: boolean;
 }
 
 export interface GroupConfigStore {

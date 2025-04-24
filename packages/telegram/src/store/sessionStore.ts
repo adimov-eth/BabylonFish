@@ -13,6 +13,7 @@ const DEFAULT_CONFIG: Omit<GroupConfig, "chatId"> = {
 	enabled: true,
 	translateCommands: false,
 	replyStyle: "reply" as const,
+	replyWithVoice: false,
 };
 
 // Define session data type

@@ -1,7 +1,12 @@
-import { Bot, type Middleware, type NextFunction } from "grammy";
+import { Bot, InputFile, type Middleware, type NextFunction } from "grammy";
 import "dotenv/config";
+import { Readable } from "node:stream";
 // Import AI function directly
-import { translateText } from "@ai/mastra/agents/assistant";
+import {
+	textToSpeech,
+	transcribeVoice,
+	translateText,
+} from "@ai/mastra/agents/assistant";
 import type { TranslationRequest, TranslationResponse } from "@ai/mastra/types";
 import {
 	type SessionContext,
@@ -53,6 +58,10 @@ async function setupCommands(botInstance: Bot<SessionContext>) {
 				command: "setstyle",
 				description: "Set reply style (reply, thread, inline)",
 			},
+			{
+				command: "togglereplyvoice",
+				description: "Toggle replying with translated voice message",
+			},
 			{ command: "help", description: "Show available commands and usage" },
 		],
 		{ scope: { type: "all_private_chats" } },
@@ -72,6 +81,10 @@ async function setupCommands(botInstance: Bot<SessionContext>) {
 			{
 				command: "setstyle",
 				description: "Set reply style (reply, thread, inline)",
+			},
+			{
+				command: "togglereplyvoice",
+				description: "Toggle replying with translated voice message",
 			},
 			{ command: "help", description: "Show available commands and usage" },
 		],
@@ -164,6 +177,7 @@ Available commands:
 /enable - Enable translation in this group
 /disable - Disable translation in this group
 /setstyle <style> - Set reply style (reply, thread, inline)
+/togglereplyvoice - Toggle replying with translated voice message
 /help - Show this help message
 `;
 		await ctx.reply(helpText);
@@ -235,12 +249,16 @@ bot.command("showconfig", async (ctx: SessionContext) => {
 		return ctx.reply("Command only available in groups.");
 	}
 
-	const config = ctx.session.config;
+	// Ensure config is loaded, handle potential null if middleware failed
+	const config =
+		ctx.session.config ?? (await getStore().get(ctx.chat?.id ?? 0));
+
 	const configString = `
 Group Configuration:
 - Enabled: ${config?.enabled}
 - Languages: ${config?.languagePair.primary} ↔ ${config?.languagePair.secondary}
 - Reply Style: ${config?.replyStyle}
+- Reply With Voice: ${config?.replyWithVoice}
 - Translate Commands: ${config?.translateCommands}
   `;
 	await ctx.reply(configString);
@@ -296,6 +314,20 @@ bot.command("setstyle", async (ctx: SessionContext) => {
 	config.replyStyle = style as "thread" | "reply" | "inline";
 	await getStore().set(ctx.chat?.id ?? 0, config);
 	await ctx.reply(`Reply style set to: ${style}`);
+});
+
+bot.command("togglereplyvoice", async (ctx: SessionContext) => {
+	if (ctx.chat?.type === "private") {
+		return ctx.reply("Command only available in groups.");
+	}
+	// TODO: Add admin check
+
+	const config = ensureConfig(ctx);
+	config.replyWithVoice = !config.replyWithVoice; // Toggle the value
+	await getStore().set(ctx.chat?.id ?? 0, config);
+	await ctx.reply(
+		`Reply with voice is now ${config.replyWithVoice ? "ENABLED" : "DISABLED"}.`,
+	);
 });
 
 // Regular message handler - MUST BE AFTER all command handlers
@@ -376,6 +408,154 @@ bot.on("message:text", async (ctx: SessionContext) => {
 			response,
 		);
 		// await ctx.reply("Sorry, couldn't translate that.", replyOptions);
+	}
+});
+
+// Voice message handler
+bot.on("message:voice", async (ctx: SessionContext) => {
+	const chatId = ctx.chat?.id;
+	if (!chatId) {
+		console.log("Ignoring voice message - no chat ID");
+		return;
+	}
+
+	const config = ensureConfig(ctx);
+	if (!config?.enabled) {
+		console.log(
+			`Voice message ignored in chat ${chatId} - translation disabled`,
+		);
+		return;
+	}
+
+	if (!ctx.message?.voice) {
+		console.log(`Ignoring non-voice message update in chat ${chatId}`);
+		return;
+	}
+
+	console.log(
+		`Processing voice message ${ctx.message.message_id} in chat ${chatId}`,
+	);
+	try {
+		const voice = ctx.message.voice;
+		const file = await ctx.getFile(); // Get file metadata
+		const filePath = file.file_path;
+
+		if (!filePath) {
+			throw new Error("Could not get voice message file path.");
+		}
+
+		// Construct download URL
+		const fileUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${filePath}`;
+
+		console.log(`Downloading voice file from: ${fileUrl}`);
+		await ctx.replyWithChatAction("typing");
+
+		// Fetch the audio file as a stream
+		const response = await fetch(fileUrl);
+		if (!response.ok || !response.body) {
+			throw new Error(`Failed to download voice file: ${response.statusText}`);
+		}
+
+		// Node.js stream Readable compatibility - fetch response.body is ReadableStream
+		// We need Node's Readable for the AI function
+		// Convert Web Stream to Node Stream
+		const nodeReadableStream = Readable.fromWeb(
+			response.body as import("stream/web").ReadableStream<Uint8Array>,
+		);
+
+		// Transcribe the voice message
+		const transcription = await transcribeVoice(nodeReadableStream);
+		console.log(
+			`Transcription for message ${ctx.message.message_id}: ${transcription}`,
+		);
+
+		// Determine source and target languages based on transcription content
+		const { primary, secondary } = config.languagePair;
+		let sourceLang = primary;
+		let targetLang = secondary;
+
+		// Use the same basic detection as text messages
+		let containsNonAscii = false;
+		for (let i = 0; i < transcription.length; i++) {
+			if (transcription.charCodeAt(i) > 127) {
+				containsNonAscii = true;
+				break;
+			}
+		}
+		if (containsNonAscii) {
+			sourceLang = secondary;
+			targetLang = primary;
+		}
+
+		console.log(
+			`Detected voice language direction: ${sourceLang} -> ${targetLang}`,
+		);
+
+		// Translate the transcription
+		const translationRequest: TranslationRequest = {
+			text: transcription,
+			sourceLanguage: sourceLang,
+			targetLanguage: targetLang,
+			groupId: chatId,
+		};
+
+		const translationResponse = await translateText(translationRequest);
+
+		// Send the translated text
+		if (
+			translationResponse?.translatedText &&
+			translationResponse.confidence > 0
+		) {
+			const username = ctx.message?.from?.username || "User";
+			const replyText = `@${username} (🎤→${targetLang}): ${translationResponse.translatedText}`;
+
+			// Use configured reply style (ignoring inline for now)
+			const replyOptions = {
+				reply_to_message_id: ctx.message.message_id,
+				// message_thread_id: config.replyStyle === 'thread' ? ctx.message.message_thread_id : undefined
+				// TODO: Add thread support when available/stable
+			};
+			await ctx.reply(replyText, replyOptions);
+
+			// Reply with voice if enabled
+			if (config.replyWithVoice) {
+				console.log(
+					`Generating voice reply for message ${ctx.message.message_id}`,
+				);
+				await ctx.replyWithChatAction("record_voice");
+				try {
+					const translatedAudioStream = await textToSpeech(
+						translationResponse.translatedText,
+					);
+					// Use InputFile to send the stream
+					await ctx.replyWithVoice(
+						new InputFile(
+							translatedAudioStream,
+							`translation-${Date.now()}.ogg`,
+						),
+						replyOptions,
+					);
+				} catch (ttsError) {
+					console.error("Failed to generate or send voice reply:", ttsError);
+					await ctx.reply("[Failed to generate voice reply]", replyOptions);
+				}
+			}
+		} else {
+			console.log(
+				`Translation failed or confidence too low for voice message ${ctx.message.message_id}`,
+			);
+			await ctx.reply("[Translation failed or confidence too low]", {
+				reply_to_message_id: ctx.message.message_id,
+			});
+		}
+	} catch (error) {
+		console.error(
+			`Error processing voice message ${ctx.message?.message_id} in chat ${chatId}:`,
+			error,
+		);
+		await ctx.reply("Sorry, I couldn't process that voice message.", {
+			reply_to_message_id: ctx.message?.message_id,
+		});
 	}
 });
 
