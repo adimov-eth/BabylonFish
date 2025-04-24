@@ -5,8 +5,18 @@ import { Memory } from "@mastra/memory";
 import { OpenAIVoice } from "@mastra/voice-openai";
 import type { TranslationRequest, TranslationResponse } from "../types";
 
-// Initialize the voice provider
-const voice = new OpenAIVoice();
+// Read API key from environment
+const openaiApiKey = process.env.OPENAI_API_KEY;
+
+if (!openaiApiKey) {
+	throw new Error("OPENAI_API_KEY environment variable is not set.");
+}
+
+// Initialize the voice provider with explicit API key
+const voice = new OpenAIVoice({
+	speechModel: { apiKey: openaiApiKey },
+	listeningModel: { apiKey: openaiApiKey },
+});
 
 export const assistantAgent = new Agent({
 	name: "Telegram Assistant",
