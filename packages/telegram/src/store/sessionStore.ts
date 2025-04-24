@@ -1,5 +1,6 @@
-import { FileAdapter } from "@grammyjs/storage-file";
+import { RedisAdapter } from "@grammyjs/storage-redis";
 import { type Context, type SessionFlavor, session } from "grammy";
+import { Redis } from "ioredis";
 import type { GroupConfig, GroupConfigStore } from "../types";
 import { createStore } from "./index";
 
@@ -24,9 +25,13 @@ export interface SessionData {
 // Export session context type
 export type SessionContext = Context & SessionFlavor<SessionData>;
 
-// Create file adapter for persistent storage
-const fileAdapter = new FileAdapter<SessionData>({
-	dirName: "data/sessions",
+// Initialize Redis client
+const redis = new Redis(process.env.REDIS_URL || "redis://localhost:6379");
+
+// Create Redis adapter for session storage
+const redisAdapter = new RedisAdapter<SessionData>({
+	instance: redis,
+	ttl: 24 * 60 * 60, // 24 hours TTL
 });
 
 // Get session key from context
@@ -35,20 +40,20 @@ const getSessionKey = (ctx: Context): string | undefined => {
 	if (!ctx.chat?.id) {
 		return undefined;
 	}
-	return ctx.chat.id.toString();
+	return `session:${ctx.chat.id.toString()}`;
 };
 
 // Initial session data
 const initialSession = (): SessionData => ({
 	language: "en",
 	config: null,
-	configStore: createStore("file"),
+	configStore: createStore("redis"),
 });
 
 // Export session middleware
 export const sessionMiddleware = session({
 	initial: initialSession,
-	storage: fileAdapter,
+	storage: redisAdapter,
 	getSessionKey,
 });
 
@@ -56,7 +61,7 @@ export const sessionMiddleware = session({
 export const getSession = async (
 	key: string,
 ): Promise<SessionData | undefined> => {
-	const data = await fileAdapter.read(key);
+	const data = await redisAdapter.read(key);
 	return data as SessionData | undefined;
 };
 
@@ -64,11 +69,11 @@ export const setSession = async (
 	key: string,
 	data: SessionData,
 ): Promise<void> => {
-	await fileAdapter.write(key, data);
+	await redisAdapter.write(key, data);
 };
 
 export const deleteSession = async (key: string): Promise<void> => {
-	await fileAdapter.delete(key);
+	await redisAdapter.delete(key);
 };
 
 // Reset session to default configuration

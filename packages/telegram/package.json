@@ -9,6 +9,7 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
+		"@grammyjs/storage-redis": "^2.5.1",
 		"@trans-bot/ai": "workspace:*",
 		"@types/ioredis": "^5.0.0",
 		"better-sqlite3": "^11.9.1",

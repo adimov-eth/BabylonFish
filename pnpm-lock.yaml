@@ -39,6 +39,9 @@ importers:
 
   packages/telegram:
     dependencies:
+      '@grammyjs/storage-redis':
+        specifier: ^2.5.1
+        version: 2.5.1
       '@trans-bot/ai':
         specifier: workspace:*
         version: link:../ai
@@ -1088,6 +1091,10 @@ packages:
   /@grammyjs/storage-file@2.5.1:
     resolution: {integrity: sha512-16jrn2IzgJgIZUtcFiA/PI4WBNfHt1dAoimrRzwPyHvM1otNuKwWAAxA6l3m7ys6YrOLlONu4q4swEkPMOT9YA==}
     dev: true
+
+  /@grammyjs/storage-redis@2.5.1:
+    resolution: {integrity: sha512-Rz7bnrtDz8NOjgSRR4n/rBciHKSvmkrgIUc+8Yb96tSsecBlA91MGOmcgmQXKxb7gTmwliF37VgmMT85bsCZtA==}
+    dev: false
 
   /@grammyjs/types@3.20.0:
     resolution: {integrity: sha512-KIoikN5VTj6dcJpzMwXtouzaN3BZJ4jihBuEeXzWr25HtEfCF25V3dN11u+uNYi/9sBDvs0KCKZhyN/xFY0MBg==}
